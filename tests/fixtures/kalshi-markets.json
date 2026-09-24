@@ -1,0 +1,28 @@
+{
+  "markets": [
+    {
+      "ticker": "KXFEDDECISION-26DEC-H0",
+      "event_ticker": "KXFEDDECISION-26DEC",
+      "market_type": "binary",
+      "title": "Will the Fed hold rates in December 2026?",
+      "yes_sub_title": "Hold",
+      "no_sub_title": "Not hold",
+      "rules_primary": "If the Federal Reserve keeps the target range unchanged at its December 2026 meeting, the market resolves to Yes.",
+      "rules_secondary": "Source: Federal Reserve press release.",
+      "close_time": "2026-12-16T18:55:00Z",
+      "expected_expiration_time": "2026-12-16T19:00:00Z",
+      "status": "active",
+      "yes_ask_dollars": "0.4200",
+      "no_ask_dollars": "0.5900",
+      "price_ranges": [{ "start": "0.0000", "end": "1.0000", "step": "0.0100" }],
+      "fee_waiver_expiration_time": null
+    },
+    {
+      "ticker": "KXMVECOMBO-XYZ",
+      "event_ticker": "KXMVECOMBO",
+      "market_type": "scalar",
+      "title": "Combo"
+    }
+  ],
+  "cursor": ""
+}

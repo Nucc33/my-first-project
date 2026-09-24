@@ -1,0 +1,36 @@
+{
+  "markets": [
+    {
+      "id": "555001",
+      "slug": "lakers-vs-celtics-2026-10-30",
+      "question": "Lakers vs. Celtics",
+      "conditionId": "0xabc",
+      "description": "This market resolves to Lakers if the Los Angeles Lakers win the game on October 30, 2026.",
+      "endDateIso": "2026-10-30",
+      "active": true,
+      "closed": false,
+      "acceptingOrders": true,
+      "enableOrderBook": true,
+      "outcomes": "[\"Lakers\", \"Celtics\"]",
+      "outcomePrices": "[\"0.45\", \"0.55\"]",
+      "clobTokenIds": "[\"111\", \"222\"]",
+      "negRisk": false,
+      "orderPriceMinTickSize": 0.01,
+      "orderMinSize": 5,
+      "feesEnabled": true,
+      "feeSchedule": { "rate": 0.05, "exponent": 1, "takerOnly": true, "rebateRate": 0 },
+      "events": [{ "slug": "nba-lal-bos-2026-10-30" }]
+    },
+    {
+      "id": "555002",
+      "question": "Closed market",
+      "active": true,
+      "closed": true,
+      "acceptingOrders": false,
+      "enableOrderBook": true,
+      "outcomes": "[\"Yes\", \"No\"]",
+      "clobTokenIds": "[\"333\", \"444\"]"
+    }
+  ],
+  "next_cursor": null
+}
