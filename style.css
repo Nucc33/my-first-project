@@ -1,0 +1,19 @@
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #03040b;
+}
+canvas {
+  display: block;
+  cursor: crosshair;
+  user-select: none;
+  -webkit-user-select: none;
+}
+noscript {
+  color: #4df3ff;
+  font: 16px system-ui, sans-serif;
+  position: absolute;
+  inset: 40% 0 auto;
+  text-align: center;
+}
