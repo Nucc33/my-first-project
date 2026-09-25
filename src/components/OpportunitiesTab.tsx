@@ -17,13 +17,32 @@ interface OppResponse {
   maxCapital: string;
 }
 
+type SortKey = "profit" | "roi" | "annualizedRoi" | "totalCost" | "contracts" | "daysToResolution";
+
 interface Filters {
   minProfit: string;
   minRoi: string;
   maxCapital: string;
   category: string;
+  sortBy: SortKey;
+  sortDir: "desc" | "asc";
 }
-const DEFAULTS: Filters = { minProfit: "0", minRoi: "0", maxCapital: "1000", category: "" };
+const DEFAULTS: Filters = { minProfit: "0", minRoi: "0", maxCapital: "1000", category: "", sortBy: "profit", sortDir: "desc" };
+
+/** Numeric value used for sorting; missing values (e.g. unknown resolution date) always sort last. */
+function sortValue(o: Opportunity, key: SortKey): number | null {
+  const v = o[key];
+  return v == null ? null : Number(v);
+}
+
+function sortOpportunities(list: Opportunity[], key: SortKey, dir: "desc" | "asc"): Opportunity[] {
+  return [...list].sort((a, b) => {
+    const x = sortValue(a, key);
+    const y = sortValue(b, key);
+    if (x === null || y === null) return x === y ? 0 : x === null ? 1 : -1;
+    return dir === "desc" ? y - x : x - y;
+  });
+}
 
 export default function OpportunitiesTab() {
   const [f, setF] = useState<Filters>(DEFAULTS);
@@ -125,18 +144,18 @@ export default function OpportunitiesTab() {
               <tr>
                 <th>Market</th>
                 <th>Direction</th>
-                <th className="num">Contracts</th>
-                <th className="num">Cost</th>
-                <th className="num">Profit</th>
-                <th className="num">ROI</th>
-                <th className="num">Ann. ROI</th>
-                <th className="num">Days</th>
+                <SortHeader label="Contracts" k="contracts" f={f} update={update} />
+                <SortHeader label="Cost" k="totalCost" f={f} update={update} />
+                <SortHeader label="Profit" k="profit" f={f} update={update} />
+                <SortHeader label="ROI" k="roi" f={f} update={update} />
+                <SortHeader label="Ann. ROI" k="annualizedRoi" f={f} update={update} />
+                <SortHeader label="Days" k="daysToResolution" f={f} update={update} />
                 <th className="num">Data age</th>
                 <th>Links</th>
               </tr>
             </thead>
             <tbody>
-              {data.opportunities.map((o) => {
+              {sortOpportunities(data.opportunities, f.sortBy, f.sortDir).map((o) => {
                 const key = `${o.pairId}-${o.direction}`;
                 return (
                   <Fragment key={key}>
@@ -219,6 +238,25 @@ export default function OpportunitiesTab() {
         </div>
       )}
     </>
+  );
+}
+
+/** Click to sort by this column (best first); click again to flip the order. */
+function SortHeader({ label, k, f, update }: { label: string; k: SortKey; f: Filters; update: (p: Partial<Filters>) => void }) {
+  const active = f.sortBy === k;
+  // Fewer days to resolution is better, so that column starts ascending.
+  const firstDir = k === "daysToResolution" || k === "totalCost" ? "asc" : "desc";
+  return (
+    <th className="num">
+      <button
+        className={`sort ${active ? "active" : ""}`}
+        title="Sort by this column"
+        onClick={() => update({ sortBy: k, sortDir: active ? (f.sortDir === "desc" ? "asc" : "desc") : firstDir })}
+      >
+        {label}
+        {active ? (f.sortDir === "desc" ? " ▼" : " ▲") : ""}
+      </button>
+    </th>
   );
 }
 
