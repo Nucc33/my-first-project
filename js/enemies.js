@@ -46,7 +46,9 @@ class Enemy {
     this.t += dt;
     this.flash -= dt;
     this.orbHitT -= dt;
+    g.acting = this; // lets spawnEnemyBullet credit the shooter (for "taken out by")
     this.think(dt, g);
+    g.acting = null;
     this.x += this.vx * dt;
     this.y += this.vy * dt;
     const r = this.r;
@@ -61,22 +63,34 @@ class Enemy {
   onDeath() {}
   drawBody() {}
   drawTelegraph() {}
+  drawAccent() {} // extra details drawn on top of a custom face
+
+  // Photo faces are drawn a bit larger than the (unchanged) hitbox.
+  get faceR() { return this.r * 1.4; }
+  ringColor() { return this.color; }
+  drawFaceBody(ctx, face, flash) {
+    drawFace(ctx, face, this.x, this.y, this.faceR, flash ? '#ffffff' : this.ringColor(), flash, Math.sin(this.t * 3) * 0.12);
+    this.drawAccent(ctx, flash ? '#ffffff' : this.ringColor());
+  }
 
   draw(ctx) {
+    const face = Faces.get(this.faceId);
     if (this.spawnT > 0) {
       // Spawn warning: converging ring + faint silhouette so spawns are never cheap.
       const k = 1 - this.spawnT / this.spawnMax;
       ctx.globalAlpha = 0.35 + 0.4 * Math.sin(k * 30) ** 2;
       ctx.strokeStyle = this.color;
       ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(this.x, this.y, this.r + (1 - k) * 40, 0, TAU); ctx.stroke();
+      ctx.beginPath(); ctx.arc(this.x, this.y, (face ? this.faceR : this.r) + (1 - k) * 40, 0, TAU); ctx.stroke();
       ctx.globalAlpha = k * 0.5;
-      this.drawBody(ctx, this.color);
+      if (face) drawFace(ctx, face, this.x, this.y, this.faceR, this.color, false);
+      else this.drawBody(ctx, this.color);
       ctx.globalAlpha = 1;
       return;
     }
     this.drawTelegraph(ctx);
-    this.drawBody(ctx, this.flash > 0 ? '#ffffff' : this.color);
+    if (face) this.drawFaceBody(ctx, face, this.flash > 0);
+    else this.drawBody(ctx, this.flash > 0 ? '#ffffff' : this.color);
   }
 }
 
@@ -98,6 +112,7 @@ function poly(ctx, x, y, r, sides, angle, color, fillA = 0.15, lw = 2.5) {
 class Chaser extends Enemy {
   constructor(x, y, sc) {
     super(x, y, { r: 14, hp: 20, speed: 118, dmg: 14, color: '#ff3d9a', score: 100, xp: 2 }, sc);
+    this.faceId = 'chaser';
   }
   think(dt, g) {
     this.steer(g.player.x, g.player.y, this.speed, 2.6, dt);
@@ -114,6 +129,7 @@ class Chaser extends Enemy {
 class Swarmer extends Enemy {
   constructor(x, y, sc) {
     super(x, y, { r: 9, hp: 10, speed: 205, dmg: 9, color: '#ffe14d', score: 50, xp: 1, fxScale: 0.6 }, sc);
+    this.faceId = 'swarmer';
     this.phase = rand(TAU);
     this.freq = rand(3, 5);
     this.spawnT = rand(0.5, 0.8);
@@ -139,6 +155,7 @@ class Swarmer extends Enemy {
 class Tank extends Enemy {
   constructor(x, y, sc) {
     super(x, y, { r: 27, hp: 130, speed: 52, dmg: 24, color: '#4dff88', score: 400, xp: 7, mass: 7, fxScale: 1.8, shake: 0.3, spawnT: 1.0 }, sc);
+    this.faceId = 'tank';
   }
   think(dt, g) {
     this.steer(g.player.x, g.player.y, this.speed, 1.2, dt);
@@ -151,6 +168,11 @@ class Tank extends Enemy {
       s.vx = Math.cos(a) * 320; s.vy = Math.sin(a) * 320;
       g.enemies.push(s);
     }
+  }
+  drawAccent(ctx, c) {
+    ctx.globalAlpha *= 0.7;
+    poly(ctx, this.x, this.y, this.faceR + 6, 6, this.angle, c, 0, 2);
+    ctx.globalAlpha /= 0.7;
   }
   drawBody(ctx, c) {
     const hpK = this.hp / this.maxHp;
@@ -165,6 +187,7 @@ class Tank extends Enemy {
 class Shard extends Enemy {
   constructor(x, y, sc) {
     super(x, y, { r: 10, hp: 16, speed: 165, dmg: 9, color: '#b6ff4d', score: 50, xp: 1, fxScale: 0.6, spawnT: 0 }, sc);
+    this.faceId = 'tank'; // mini versions of the tank
     this.stun = 0.35;
   }
   think(dt, g) {
@@ -183,6 +206,7 @@ class Shard extends Enemy {
 class Shooter extends Enemy {
   constructor(x, y, sc, wave) {
     super(x, y, { r: 15, hp: 40, speed: 95, dmg: 12, color: '#ff8a3d', score: 200, xp: 3 }, sc);
+    this.faceId = 'shooter';
     this.orbitDir = randSign();
     this.cd = rand(1.2, 2.2);
     this.charge = 0;
@@ -220,11 +244,15 @@ class Shooter extends Enemy {
   }
   drawBody(ctx, c) {
     poly(ctx, this.x, this.y, this.r, 4, this.angle + Math.PI / 4, c, 0.15, 2.5);
-    // Barrel
+    this.drawAccent(ctx, c);
+  }
+  drawAccent(ctx, c) {
+    // Barrel (sticks out past a face so you can still read where it aims)
+    const face = Faces.get(this.faceId), r0 = face ? this.faceR : 0, len = face ? this.faceR + 10 : this.r + 8;
     ctx.strokeStyle = c; ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.moveTo(this.x, this.y);
-    ctx.lineTo(this.x + Math.cos(this.aim) * (this.r + 8), this.y + Math.sin(this.aim) * (this.r + 8));
+    ctx.moveTo(this.x + Math.cos(this.aim) * r0, this.y + Math.sin(this.aim) * r0);
+    ctx.lineTo(this.x + Math.cos(this.aim) * len, this.y + Math.sin(this.aim) * len);
     ctx.stroke();
     if (this.charge > 0) {
       const k = 1 - this.charge / 0.6;
@@ -240,6 +268,7 @@ class Shooter extends Enemy {
 class Dasher extends Enemy {
   constructor(x, y, sc) {
     super(x, y, { r: 14, hp: 35, speed: 95, dmg: 20, color: '#b56bff', score: 250, xp: 3 }, sc);
+    this.faceId = 'dasher';
     this.state = 'seek';
     this.st = rand(1, 2);
     this.dir = 0;
@@ -320,6 +349,7 @@ class Boss extends Enemy {
     }, sc);
     this.tier = tier;
     this.isBoss = true;
+    this.faceId = 'boss';
     this.phase = 1;
     this.state = 'idle';
     this.st = 1.5;
@@ -332,6 +362,19 @@ class Boss extends Enemy {
   }
 
   get hpK() { return this.hp / this.maxHp; }
+  get faceR() { return this.r * 1.1; }
+  ringColor() { return this.phase === 3 ? '#ff2ee0' : this.phase === 2 ? '#ff4d2e' : this.color; }
+  drawAccent(ctx, c) {
+    // Rotating spiked crown around the boss's face.
+    const x = this.x, y = this.y, r = this.faceR;
+    ctx.beginPath();
+    for (let i = 0; i < 14; i++) {
+      const a = this.angle + i * TAU / 14, rr = i % 2 ? r + 4 : r + 20;
+      i ? ctx.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr) : ctx.moveTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr);
+    }
+    ctx.closePath();
+    ctx.strokeStyle = c; ctx.lineWidth = 3; ctx.lineJoin = 'round'; ctx.stroke();
+  }
 
   think(dt, g) {
     const p = g.player;

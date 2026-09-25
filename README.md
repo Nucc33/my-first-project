@@ -34,6 +34,17 @@ Sound starts on your first click or key press (a browser autoplay rule).
 | `N`                | Toggle music                             |
 | `R`                | Restart (game over or pause screen)      |
 
+## Put your friends in the game
+
+On the title screen press **C** (or click **ADD YOUR FRIENDS**) to open the Characters screen.
+Click a slot and pick a photo to cast someone as the **hero** (you), **the boss**, or one of
+the enemy types. Their face replaces that character's neon shape. Click **×** on a slot to go back
+to the default look. When you lose, the game over screen shows who took you out.
+
+Photos are cropped to a small square and saved only in your browser on this computer. They are
+never uploaded and are not part of the project files. JPG and PNG work everywhere; iPhone HEIC photos may
+only load in Safari.
+
 ## How to play
 
 - Clear a wave and you choose **1 of 3 upgrades**. Boss waves offer better (rarer) cards.
@@ -76,6 +87,7 @@ style.css
 js/util.js        math/easing helpers, safe localStorage, uniform-grid broadphase
 js/input.js       keyboard/mouse state with per-tick edge detection
 js/audio.js       Web Audio synth: SFX + look-ahead step-sequencer music
+js/faces.js       Characters screen: photo faces stored in localStorage
 js/fx.js          pooled particles, damage numbers, rings, lightning, warp grid, screen shake
 js/entities.js    player ship, bullets, enemy bullets, XP orbs
 js/enemies.js     enemy types + the Warden boss

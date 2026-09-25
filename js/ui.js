@@ -10,6 +10,7 @@ const UI = {
     c.textBaseline = 'middle';
     switch (g.state) {
       case 'title': this.title(c, g); break;
+      case 'faces': this.faces(c, g); break;
       case 'playing': this.hud(c, g); this.bannerDraw(c, g); break;
       case 'upgrade': this.hud(c, g); this.upgrade(c, g); break;
       case 'paused': this.hud(c, g); this.paused(c, g); break;
@@ -101,6 +102,31 @@ const UI = {
     c.font = this.font(Math.max(13, size * 0.15), 700);
     this.spaced(c, 'SURVIVE  THE  GRID', cx, cy + size * 0.72, size * 0.06);
 
+    // Cast row: any photos the player has added.
+    const cast = FACE_SLOTS.filter(sl => Faces.get(sl.id));
+    if (cast.length) {
+      const R = 20, step = 52, x0 = cx - (cast.length - 1) * step / 2, fy = cy + size * 0.72 + 58;
+      cast.forEach((sl, i) => {
+        const bob = Math.sin(t * 3 + i) * 3;
+        drawFace(c, Faces.get(sl.id), x0 + i * step, fy + bob, sl.id === 'player' ? R + 4 : R, sl.color, false);
+      });
+      c.globalAlpha = intro;
+    }
+
+    // Characters button
+    const bt = this.titleButton(g), m = Input.mouse;
+    const hov = m.x >= bt.x && m.x <= bt.x + bt.w && m.y >= bt.y && m.y <= bt.y + bt.h;
+    this.rr(c, bt.x, bt.y, bt.w, bt.h, 8);
+    c.fillStyle = hov ? 'rgba(255,225,77,0.18)' : 'rgba(6,10,26,0.7)';
+    c.fill();
+    c.strokeStyle = hov ? '#ffe14d' : 'rgba(255,225,77,0.5)';
+    c.lineWidth = 1.5;
+    c.stroke();
+    c.font = this.font(14, 800);
+    c.fillStyle = '#ffe14d';
+    c.textAlign = 'center';
+    this.spaced(c, cast.length ? 'EDIT  CHARACTERS  [C]' : 'ADD  YOUR  FRIENDS  [C]', cx, bt.y + bt.h / 2, 2);
+
     // Pulsing prompt
     c.globalAlpha = intro * (0.55 + 0.45 * Math.sin(t * 4));
     c.fillStyle = '#ffffff';
@@ -137,6 +163,133 @@ const UI = {
     c.fillStyle = '#56648a';
     c.fillText(`sound ${Sound.muted ? 'OFF' : 'ON'}  ·  music ${Sound.musicOn ? 'ON' : 'OFF'}`, cx, H - 28);
     c.globalAlpha = 1;
+  },
+
+  titleButton(g) {
+    const w = 300, h = 40;
+    return { x: g.W / 2 - w / 2, y: g.H * 0.765 - h / 2, w, h };
+  },
+
+  // ------------------------------------------------------------ characters
+  faceRects(g) {
+    const W = g.W, H = g.H, n = FACE_SLOTS.length;
+    const cols = W >= 1100 ? n : 4, rows = Math.ceil(n / cols), gap = 16;
+    const cw = Math.min(160, (W - 60 - (cols - 1) * gap) / cols);
+    const ch = Math.min(cw * 1.45, (H - 260) / rows - gap);
+    const total = rows * ch + (rows - 1) * gap;
+    const y0 = H / 2 - total / 2 + 10;
+    return FACE_SLOTS.map((sl, i) => {
+      const row = Math.floor(i / cols), inRow = Math.min(cols, n - row * cols), col = i - row * cols;
+      const x0 = W / 2 - (inRow * cw + (inRow - 1) * gap) / 2;
+      const x = x0 + col * (cw + gap), y = y0 + row * (ch + gap);
+      return { x, y, w: cw, h: ch, id: sl.id, clear: { x: x + cw - 26, y: y + 6, w: 20, h: 20 } };
+    });
+  },
+
+  facesButtons(g) {
+    const w = 170, h = 42, y = g.H - 78;
+    return {
+      back: { x: g.W / 2 - w - 10, y, w, h },
+      play: { x: g.W / 2 + 10, y, w, h },
+    };
+  },
+
+  facesHit(g, x, y) {
+    const inR = r => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
+    const b = this.facesButtons(g);
+    if (inR(b.back)) return { type: 'back' };
+    if (inR(b.play)) return { type: 'play' };
+    for (const r of this.faceRects(g)) {
+      if (Faces.get(r.id) && inR(r.clear)) return { type: 'clear', id: r.id };
+      if (inR(r)) return { type: 'slot', id: r.id };
+    }
+    return null;
+  },
+
+  faces(c, g) {
+    const W = g.W, H = g.H, t = g.realT, m = Input.mouse;
+    c.fillStyle = 'rgba(2,3,10,0.72)';
+    c.fillRect(0, 0, W, H);
+    const rects = this.faceRects(g);
+    const top = rects[0].y;
+    c.textAlign = 'center';
+    c.font = this.font(Math.min(42, W / 18), 900);
+    c.fillStyle = '#ffe14d';
+    this.spaced(c, 'CHARACTERS', W / 2, top - 78, 6);
+    c.font = this.font(14, 600);
+    c.fillStyle = '#d6e2ff';
+    c.fillText('Click a slot and pick a photo. Put a friend in any role: the hero, the boss, or the bad guys.', W / 2, top - 40);
+    c.font = this.font(11, 500);
+    c.fillStyle = '#56648a';
+    c.fillText('Photos stay saved in this browser on this computer. They are never uploaded.', W / 2, top - 20);
+
+    rects.forEach((r, i) => {
+      const sl = FACE_SLOTS[i], face = Faces.get(sl.id);
+      const hov = m.x >= r.x && m.x <= r.x + r.w && m.y >= r.y && m.y <= r.y + r.h;
+      this.rr(c, r.x, r.y, r.w, r.h, 12);
+      c.fillStyle = hov ? 'rgba(20,28,60,0.95)' : 'rgba(9,13,32,0.92)';
+      c.fill();
+      c.strokeStyle = sl.color;
+      c.globalAlpha = hov ? 1 : 0.6;
+      c.lineWidth = hov ? 2.5 : 1.5;
+      c.stroke();
+      c.globalAlpha = 1;
+
+      const R = Math.min(r.w * 0.32, r.h * 0.26), fx = r.x + r.w / 2, fy = r.y + r.h * 0.36;
+      if (face) {
+        drawFace(c, face, fx, fy + Math.sin(t * 3 + i) * 2, R, sl.color, false);
+        // Clear button
+        const cl = r.clear, ch = m.x >= cl.x && m.x <= cl.x + cl.w && m.y >= cl.y && m.y <= cl.y + cl.h;
+        c.strokeStyle = ch ? '#ff2e55' : '#56648a';
+        c.lineWidth = 2;
+        c.beginPath();
+        c.moveTo(cl.x + 5, cl.y + 5); c.lineTo(cl.x + 15, cl.y + 15);
+        c.moveTo(cl.x + 15, cl.y + 5); c.lineTo(cl.x + 5, cl.y + 15);
+        c.stroke();
+      } else {
+        c.strokeStyle = sl.color;
+        c.globalAlpha = 0.5 + (hov ? 0.4 : 0.15 * Math.sin(t * 3 + i));
+        c.lineWidth = 2;
+        c.setLineDash([6, 6]);
+        c.beginPath(); c.arc(fx, fy, R, 0, TAU); c.stroke();
+        c.setLineDash([]);
+        c.beginPath();
+        c.moveTo(fx - R * 0.3, fy); c.lineTo(fx + R * 0.3, fy);
+        c.moveTo(fx, fy - R * 0.3); c.lineTo(fx, fy + R * 0.3);
+        c.stroke();
+        c.globalAlpha = 1;
+      }
+      c.textAlign = 'center';
+      c.font = this.font(Math.min(15, r.w / 9), 900);
+      c.fillStyle = sl.color;
+      c.fillText(sl.name, fx, r.y + r.h * 0.7);
+      c.font = this.font(11, 500);
+      c.fillStyle = '#9fb3d9';
+      c.fillText(sl.role, fx, r.y + r.h * 0.7 + 20);
+      c.font = this.font(10, 700);
+      c.fillStyle = hov ? '#ffffff' : '#56648a';
+      c.fillText(face ? 'click to change' : '+ add photo', fx, r.y + r.h - 14);
+    });
+
+    const b = this.facesButtons(g);
+    [['back', 'BACK  [ESC]', '#9fb3d9'], ['play', 'PLAY  [ENTER]', '#4df3ff']].forEach(([k, label, col]) => {
+      const r = b[k], hov = m.x >= r.x && m.x <= r.x + r.w && m.y >= r.y && m.y <= r.y + r.h;
+      this.rr(c, r.x, r.y, r.w, r.h, 8);
+      c.fillStyle = hov ? 'rgba(77,243,255,0.15)' : 'rgba(6,10,26,0.8)';
+      c.fill();
+      c.strokeStyle = col; c.lineWidth = hov ? 2 : 1; c.stroke();
+      c.font = this.font(14, 800);
+      c.fillStyle = col;
+      this.spaced(c, label, r.x + r.w / 2, r.y + r.h / 2, 2);
+    });
+
+    if (Faces.msgT > 0) {
+      c.globalAlpha = Math.min(1, Faces.msgT);
+      c.font = this.font(14, 700);
+      c.fillStyle = '#ff5a6e';
+      c.fillText(Faces.msg, W / 2, b.back.y - 24);
+      c.globalAlpha = 1;
+    }
   },
 
   // ---------------------------------------------------------------- HUD
@@ -547,6 +700,24 @@ const UI = {
       c.font = this.font(13, 700);
       c.fillStyle = '#56648a';
       c.fillText(`HIGH SCORE  ${formatNum(g.highScore)}`, W / 2, endY + 16);
+    }
+
+    // Who got you?
+    const kf = Faces.get(g.killer);
+    if (kf && k > 0.9 && W >= 900) {
+      const kx = W / 2 - colW - 150, ky = y0 + 70;
+      const sl = FACE_SLOTS.find(q => q.id === g.killer);
+      const pop = Ease.outBack(clamp((k - 0.9) / 0.4, 0, 1));
+      c.globalAlpha = clamp((k - 0.9) * 3, 0, 1);
+      c.font = this.font(12, 800);
+      c.fillStyle = '#ff5a6e';
+      c.textAlign = 'center';
+      this.spaced(c, 'TAKEN OUT BY', kx, ky - 62, 3);
+      drawFace(c, kf, kx, ky + Math.sin(t * 2) * 3, 44 * pop, sl.color, false, Math.sin(t * 1.5) * 0.1);
+      c.font = this.font(14, 900);
+      c.fillStyle = sl.color;
+      c.fillText(sl.name, kx, ky + 66);
+      c.globalAlpha = 1;
     }
 
     if (k > 1.1) {

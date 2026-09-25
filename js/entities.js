@@ -245,10 +245,25 @@ class Player {
     ctx.fillStyle = COL.player;
     ctx.beginPath(); ctx.arc(this.x, this.y, 22, 0, TAU); ctx.fill();
     ctx.globalAlpha = 1;
-    drawShip(ctx, this.x, this.y, this.angle, col, 0.25);
-    // Core
-    ctx.fillStyle = '#fff';
-    ctx.beginPath(); ctx.arc(this.x - Math.cos(this.angle) * 2, this.y - Math.sin(this.angle) * 2, 3, 0, TAU); ctx.fill();
+    const face = Faces.get('player');
+    if (face) {
+      drawFace(ctx, face, this.x, this.y, 19, col, this.hurtFlash > 0);
+      // Nose arrow so you can always see where you're aiming.
+      const ca = Math.cos(this.angle), sa = Math.sin(this.angle);
+      const tx = this.x + ca * 32, ty = this.y + sa * 32;
+      ctx.fillStyle = col;
+      ctx.beginPath();
+      ctx.moveTo(tx, ty);
+      ctx.lineTo(tx - ca * 10 - sa * 7, ty - sa * 10 + ca * 7);
+      ctx.lineTo(tx - ca * 10 + sa * 7, ty - sa * 10 - ca * 7);
+      ctx.closePath();
+      ctx.fill();
+    } else {
+      drawShip(ctx, this.x, this.y, this.angle, col, 0.25);
+      // Core
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.arc(this.x - Math.cos(this.angle) * 2, this.y - Math.sin(this.angle) * 2, 3, 0, TAU); ctx.fill();
+    }
 
     // Dash cooldown arc
     if (this.dashCdT > 0) {

@@ -15,6 +15,8 @@ const Game = {
     this.ctx = this.canvas.getContext('2d');
     this.scene = document.createElement('canvas');
     this.sctx = this.scene.getContext('2d');
+    this.uiCanvas = document.createElement('canvas'); // UI gets its own layer so overlays dim photo faces
+    this.uctx = this.uiCanvas.getContext('2d');
     this.blurs = [0, 1, 2].map(() => {
       const c = document.createElement('canvas');
       return { c, x: c.getContext('2d') };
@@ -35,6 +37,7 @@ const Game = {
     this.resetWorld();
 
     Input.init(this.canvas);
+    Faces.init(this.canvas);
     Input.onBlur = () => { if (this.state === 'playing') this.pause(); };
     document.addEventListener('visibilitychange', () => { if (document.hidden && this.state === 'playing') this.pause(); });
     window.addEventListener('resize', () => this.resize());
@@ -81,6 +84,7 @@ const Game = {
     this.bulletId = 0;
     this.pickupStreak = 0; this.lastPickup = -1;
     this.newHigh = false;
+    this.killer = null; this.acting = null;
     FX.reset(); Shake.reset(); this.grid.reset();
     this.ui.hpLag = 1; this.ui.scoreShown = 0; this.ui.goScore = 0;
   },
@@ -92,7 +96,7 @@ const Game = {
     if (W * H * dpr * dpr > maxPx) dpr = Math.sqrt(maxPx / (W * H));
     this.W = W; this.H = H; this.dpr = dpr;
     const cw = Math.round(W * dpr), ch = Math.round(H * dpr);
-    for (const c of [this.canvas, this.scene]) { c.width = cw; c.height = ch; }
+    for (const c of [this.canvas, this.scene, this.uiCanvas]) { c.width = cw; c.height = ch; }
     this.canvas.style.width = W + 'px'; this.canvas.style.height = H + 'px';
     let bw = cw, bh = ch;
     for (const b of this.blurs) {
@@ -208,6 +212,7 @@ const Game = {
     if (Input.hit('KeyN')) Sound.toggleMusic();
     switch (this.state) {
       case 'title': this.updateTitle(dt); break;
+      case 'faces': this.updateFaces(dt); break;
       case 'playing': this.updatePlaying(dt); break;
       case 'paused': this.updatePaused(); break;
       case 'upgrade': this.updateUpgrade(dt); break;
@@ -217,7 +222,33 @@ const Game = {
     this.updateUi(dt);
   },
 
+  // Characters screen: slot clicks are handled by Faces' pointer listener.
+  updateFaces(dt) {
+    this.ambient(dt);
+    Faces.msgT = Math.max(0, Faces.msgT - dt);
+    if (Input.hit('Escape', 'KeyC', 'Backspace')) { this.toTitle(); Sound.sfx.hover(); }
+    else if (Input.hit('Enter', 'NumpadEnter')) this.startRun();
+    Input.click(); // swallow — handled in the pointer listener
+  },
+
+  openFaces() {
+    this.state = 'faces';
+    Sound.sfx.select();
+  },
+
   updateTitle(dt) {
+    this.ambient(dt);
+    if (this.titleT <= 0.3) return;
+    if (Input.hit('KeyC')) { this.openFaces(); return; }
+    if (Input.hit('Enter', 'Space', 'NumpadEnter')) { this.startRun(); return; }
+    if (Input.click()) {
+      const b = UI.titleButton(this), m = Input.mouse;
+      if (m.x >= b.x && m.x <= b.x + b.w && m.y >= b.y && m.y <= b.y + b.h) this.openFaces();
+      else this.startRun();
+    }
+  },
+
+  ambient(dt) {
     this.titleT += dt;
     this.t += dt;
     this.updateCamera(dt);
@@ -228,7 +259,6 @@ const Game = {
       this.grid.force(x, y, 260, 200);
     }
     FX.update(dt); this.grid.update(dt); Shake.update(dt);
-    if (this.titleT > 0.3 && (Input.hit('Enter', 'Space', 'NumpadEnter') || Input.click())) this.startRun();
   },
 
   updatePlaying(dt) {
@@ -375,7 +405,7 @@ const Game = {
     this.mouseWorld.x = this.cam.x + (m.x - this.W / 2) / z;
     this.mouseWorld.y = this.cam.y + (m.y - this.H / 2) / z;
     let tx, ty;
-    if (this.state === 'title') {
+    if (this.state === 'title' || this.state === 'faces') {
       tx = ARENA_W / 2 + Math.sin(this.titleT * 0.13) * 400;
       ty = ARENA_H / 2 + Math.cos(this.titleT * 0.09) * 250;
     } else {
@@ -443,6 +473,7 @@ const Game = {
     this.ebullets.push({
       x, y, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed, r, color,
       life: 4.5, dmg: Math.round(11 * this.director.scale.dmg), dead: false,
+      owner: this.acting ? this.acting.faceId : null,
     });
   },
 
@@ -763,7 +794,10 @@ const Game = {
     // Mercy: erase bullets right next to the player so hits don't chain unfairly.
     for (const b of this.ebullets) if (dist2(p.x, p.y, b.x, b.y) < 150 * 150) { b.dead = true; FX.burst(b.x, b.y, b.color, 3, 100, 0.3, 1.5); }
     Sound.sfx.hurt();
-    if (p.hp <= 0) this.playerDie();
+    if (p.hp <= 0) {
+      this.killer = src.faceId || src.owner || null;
+      this.playerDie();
+    }
   },
 
   playerDie() {
@@ -838,6 +872,8 @@ const Game = {
     c.fillStyle = '#03040b';
     c.fillRect(0, 0, W, H);
 
+    FaceLayer.world.length = 0; FaceLayer.ui.length = 0;
+    FaceLayer.target = FaceLayer.world;
     const sh = Shake.offset();
     c.save();
     c.translate(W / 2, H / 2);
@@ -850,10 +886,24 @@ const Game = {
     };
     this.drawWorld(c, view);
     c.restore();
-    // Vignette the world only, so the HUD in the corners stays crisp.
-    c.drawImage(this.vignette, 0, 0, W, H);
 
-    UI.draw(c, this);
+    // With photo faces loaded, the UI goes on its own layer (drawn after the
+    // photos, so overlays still dim them). Without faces, skip the extra layer.
+    this.layered = FaceLayer.world.length > 0 || this.state === 'faces' || this.state === 'title';
+    if (this.layered) {
+      const u = this.uctx;
+      u.setTransform(1, 0, 0, 1, 0, 0);
+      u.clearRect(0, 0, this.uiCanvas.width, this.uiCanvas.height);
+      u.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+      u.globalAlpha = 1;
+      u.globalCompositeOperation = 'source-over';
+      FaceLayer.target = FaceLayer.ui;
+      UI.draw(u, this);
+    } else {
+      c.drawImage(this.vignette, 0, 0, W, H);
+      UI.draw(c, this);
+    }
+    FaceLayer.target = null;
     this.composite();
   },
 
@@ -887,33 +937,45 @@ const Game = {
 
     drawEnemyBullets(c, this.ebullets, this.t);
     drawBullets(c, this.bullets);
-    if (this.state !== 'title') p.draw(c, this);
+    if (this.state !== 'title' && this.state !== 'faces') p.draw(c, this);
     FX.draw(c);
     FX.drawTexts(c);
   },
 
-  composite() {
+  // Draw a layer plus its bloom: progressive half-res downsamples act as a cheap wide blur.
+  bloomLayer(src) {
     const m = this.ctx, cw = this.canvas.width, ch = this.canvas.height;
     const [b1, b2, b3] = this.blurs;
-    // Progressive half-res downsamples act as a cheap wide blur for bloom.
     b1.x.clearRect(0, 0, b1.c.width, b1.c.height);
-    b1.x.drawImage(this.scene, 0, 0, b1.c.width, b1.c.height);
+    b1.x.drawImage(src, 0, 0, b1.c.width, b1.c.height);
     b2.x.clearRect(0, 0, b2.c.width, b2.c.height);
     b2.x.drawImage(b1.c, 0, 0, b2.c.width, b2.c.height);
     b3.x.clearRect(0, 0, b3.c.width, b3.c.height);
     b3.x.drawImage(b2.c, 0, 0, b3.c.width, b3.c.height);
-
     m.setTransform(1, 0, 0, 1, 0, 0);
     m.globalCompositeOperation = 'source-over';
     m.globalAlpha = 1;
-    m.imageSmoothingEnabled = true;
-    m.drawImage(this.scene, 0, 0);
+    m.drawImage(src, 0, 0);
     m.globalCompositeOperation = 'lighter';
     m.globalAlpha = 0.45;
     m.drawImage(b2.c, 0, 0, cw, ch);
     m.globalAlpha = 0.6;
     m.drawImage(b3.c, 0, 0, cw, ch);
     m.globalCompositeOperation = 'source-over';
+    m.globalAlpha = 1;
+  },
+
+  composite() {
+    const m = this.ctx, cw = this.canvas.width, ch = this.canvas.height;
+    m.imageSmoothingEnabled = true;
+    this.bloomLayer(this.scene);
+    if (this.layered) {
+      replayFaces(m, FaceLayer.world);
+      // Vignette the world only, so the HUD in the corners stays crisp.
+      m.drawImage(this.vignette, 0, 0, cw, ch);
+      this.bloomLayer(this.uiCanvas);
+      replayFaces(m, FaceLayer.ui);
+    }
 
     const p = this.player;
     const playing = this.state === 'playing' || this.state === 'upgrade' || this.state === 'paused';

@@ -151,7 +151,9 @@ const FX = {
         ctx.restore();
       } else if (p.kind === PK_GHOST) {
         ctx.globalAlpha = k * 0.5;
-        drawShip(ctx, p.x, p.y, p.angle, p.color, 1);
+        const face = Faces.get('player');
+        if (face) ctx.drawImage(face, p.x - 19, p.y - 19, 38, 38);
+        else drawShip(ctx, p.x, p.y, p.angle, p.color, 1);
       }
     }
     for (const r of this.rings) {
