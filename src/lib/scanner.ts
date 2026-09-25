@@ -19,6 +19,19 @@ import type { Pair } from "./pairs";
 import { getPolyBooks, getPolyMarket, listPolyMarkets } from "./polymarket/client";
 import type { PolyMarket } from "./polymarket/parse";
 
+export interface RefreshProgress {
+  startedAt: string;
+  kalshiPages: number;
+  kalshiMarkets: number;
+  kalshiDone: boolean;
+  polyPages: number;
+  polyMarkets: number;
+  polyDone: boolean;
+}
+
+/** After a failed catalog refresh, wait this long before the poller tries again. */
+const REFRESH_RETRY_MS = 5 * 60_000;
+
 interface ScannerState {
   books: Map<number, PairBooks>;
   lastScanAt: string | null;
@@ -29,6 +42,9 @@ interface ScannerState {
   lastRefreshAt: string | null;
   lastRefreshError: string | null;
   lastRefreshCounts: { kalshi: number; polymarket: number } | null;
+  /** When the last refresh (successful or not) finished; failed refreshes wait before retrying. */
+  lastRefreshAttemptAt: number | null;
+  refreshProgress: RefreshProgress | null;
   pollerStarted: boolean;
   /** "k:<ticker>" / "p:<id>" → time of last failed single-market lookup. */
   missing: Map<string, number>;
@@ -46,6 +62,8 @@ export const state: ScannerState = (g.__arbScanner ??= {
   lastRefreshAt: null,
   lastRefreshError: null,
   lastRefreshCounts: null,
+  lastRefreshAttemptAt: null,
+  refreshProgress: null,
   pollerStarted: false,
   missing: new Map(),
   timer: null,
@@ -56,6 +74,15 @@ export async function refreshMarkets(): Promise<{ kalshi: number; polymarket: nu
   if (state.refreshing) throw new Error("Market refresh already running");
   state.refreshing = true;
   const started = new Date().toISOString();
+  const progress: RefreshProgress = (state.refreshProgress = {
+    startedAt: started,
+    kalshiPages: 0,
+    kalshiMarkets: 0,
+    kalshiDone: false,
+    polyPages: 0,
+    polyMarkets: 0,
+    polyDone: false,
+  });
   try {
     const counts = { kalshi: 0, polymarket: 0 };
     const [k, p] = await Promise.allSettled([
@@ -63,16 +90,20 @@ export async function refreshMarkets(): Promise<{ kalshi: number; polymarket: nu
         onPage: async (page) => {
           saveKalshiMarkets(page);
           counts.kalshi += page.length;
+          progress.kalshiPages++;
+          progress.kalshiMarkets = counts.kalshi;
           await yieldToEventLoop();
         },
-      }),
+      }).finally(() => (progress.kalshiDone = true)),
       listPolyMarkets({
         onPage: async (page) => {
           savePolyMarkets(page);
           counts.polymarket += page.length;
+          progress.polyPages++;
+          progress.polyMarkets = counts.polymarket;
           await yieldToEventLoop();
         },
-      }),
+      }).finally(() => (progress.polyDone = true)),
     ]);
     const errors: string[] = [];
     if (k.status === "rejected") errors.push(`Kalshi: ${(k.reason as Error).message}`);
@@ -88,6 +119,8 @@ export async function refreshMarkets(): Promise<{ kalshi: number; polymarket: nu
     return counts;
   } finally {
     state.refreshing = false;
+    state.refreshProgress = null;
+    state.lastRefreshAttemptAt = Date.now();
   }
 }
 
@@ -235,8 +268,10 @@ export function startPoller(): void {
 
   const tick = async () => {
     try {
-      const last = state.lastRefreshAt ? Date.parse(state.lastRefreshAt) : 0;
-      if (!state.refreshing && Date.now() - last > c.marketRefreshIntervalMs) {
+      const lastOk = state.lastRefreshAt ? Date.parse(state.lastRefreshAt) : 0;
+      const lastTry = state.lastRefreshAttemptAt ?? 0;
+      const due = Date.now() - lastOk > c.marketRefreshIntervalMs && Date.now() - lastTry > REFRESH_RETRY_MS;
+      if (!state.refreshing && due) {
         // Don't block scanning of confirmed pairs on the (slow) catalog refresh.
         refreshMarkets().catch((err) => {
           state.lastRefreshError = (err as Error).message;

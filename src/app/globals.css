@@ -80,6 +80,7 @@ dl.kv { display: grid; grid-template-columns: max-content 1fr; gap: 2px 12px; ma
 dl.kv dt { color: var(--muted); }
 dl.kv dd { margin: 0; overflow-wrap: anywhere; }
 .error { color: var(--bad); }
+.warn-note { background: var(--warn-bg); color: var(--warn-text); padding: 6px 10px; border-radius: 6px; }
 .stack { display: flex; flex-direction: column; gap: 8px; }
 .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 ul.limits li { margin-bottom: 6px; }

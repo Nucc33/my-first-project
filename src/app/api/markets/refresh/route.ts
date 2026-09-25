@@ -7,7 +7,8 @@ export const maxDuration = 300;
 /** POST /api/markets/refresh — re-pull both venues' open-market catalogs. */
 export async function POST() {
   ensureStarted();
-  if (state.refreshing) return json({ status: "already running" }, { status: 409 });
+  // Not an error from the user's point of view: progress for the running download is on the Review tab.
+  if (state.refreshing) return json({ alreadyRunning: true });
   try {
     const counts = await refreshMarkets();
     return json({ counts, error: state.lastRefreshError });

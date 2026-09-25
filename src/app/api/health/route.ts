@@ -18,6 +18,7 @@ export async function GET() {
       lastScanDurationMs: state.lastScanDurationMs,
       lastScanError: state.lastScanError,
       refreshing: state.refreshing,
+      refreshProgress: state.refreshProgress,
       lastRefreshAt: state.lastRefreshAt,
       lastRefreshError: state.lastRefreshError,
       lastRefreshCounts: state.lastRefreshCounts,

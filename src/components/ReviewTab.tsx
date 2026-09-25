@@ -5,6 +5,7 @@ import useSWR from "swr";
 import type { KalshiMarket } from "@/lib/kalshi/parse";
 import type { Candidate } from "@/lib/matching/candidates";
 import type { PolyMarket } from "@/lib/polymarket/parse";
+import type { RefreshProgress } from "@/lib/scanner";
 import { ago, date, fetcher, postJson } from "./fmt";
 
 interface CandResponse {
@@ -12,7 +13,28 @@ interface CandResponse {
   counts: { kalshi: number; polymarket: number };
   lastRefreshAt: string | null;
   refreshing: boolean;
+  refreshProgress: RefreshProgress | null;
   refreshError: string | null;
+  /** Scored from a catalog that is still downloading. */
+  partial?: boolean;
+}
+
+const n = (x: number) => x.toLocaleString("en-US");
+
+function ProgressLine({ p }: { p: RefreshProgress }) {
+  const venue = (name: string, pages: number, markets: number, done: boolean) =>
+    `${name}: ${n(markets)} markets (${n(pages)} pages)${done ? " ✓ done" : " …"}`;
+  return (
+    <div className="small" style={{ width: "100%" }}>
+      <strong>Downloading markets</strong> (started {ago(p.startedAt)}) ·{" "}
+      {venue("Kalshi", p.kalshiPages, p.kalshiMarkets, p.kalshiDone)} ·{" "}
+      {venue("Polymarket", p.polyPages, p.polyMarkets, p.polyDone)}
+      <div className="muted">
+        Kalshi lists a very large number of markets, so the first download can take several minutes. You can review
+        candidates below while it runs.
+      </div>
+    </div>
+  );
 }
 
 interface Selection {
@@ -26,18 +48,22 @@ export default function ReviewTab() {
   const [refreshMsg, setRefreshMsg] = useState<string | null>(null);
   const [manual, setManual] = useState<Selection>({ kalshiTicker: "", polyMarketId: "" });
   const { data, error, mutate } = useSWR<CandResponse>(`/api/candidates${ignoreDates ? "?ignoreDates=1" : ""}`, fetcher, {
-    refreshInterval: 30_000,
+    // Poll quickly while a download is running so the progress numbers move.
+    refreshInterval: (latest) => (latest?.refreshing ? 3_000 : 30_000),
   });
 
   const refresh = async () => {
-    setRefreshMsg("Refreshing market catalogs. This can take a minute…");
+    setRefreshMsg(null);
+    const request = postJson<{ alreadyRunning?: boolean; counts?: { kalshi: number; polymarket: number } }>("/api/markets/refresh");
+    // The request only returns when the download finishes; re-poll now so progress shows immediately.
+    setTimeout(() => mutate(), 500);
     try {
-      const r = await postJson<{ counts: { kalshi: number; polymarket: number }; error: string | null }>("/api/markets/refresh");
-      setRefreshMsg(`Loaded ${r.counts.kalshi} Kalshi and ${r.counts.polymarket} Polymarket markets${r.error ? ` (errors: ${r.error})` : ""}`);
-      mutate();
+      const r = await request;
+      if (r.counts) setRefreshMsg(`Loaded ${n(r.counts.kalshi)} Kalshi and ${n(r.counts.polymarket)} Polymarket markets`);
     } catch (e) {
       setRefreshMsg(`Refresh failed: ${(e as Error).message}`);
     }
+    mutate();
   };
 
   return (
@@ -53,13 +79,18 @@ export default function ReviewTab() {
         <span className="muted small">
           {data && (
             <>
-              Cached: {data.counts.kalshi} Kalshi / {data.counts.polymarket} Polymarket · catalog refreshed {ago(data.lastRefreshAt)}
-              {data.refreshing && " · refreshing…"}
+              Cached: {n(data.counts.kalshi)} Kalshi / {n(data.counts.polymarket)} Polymarket · last complete download{" "}
+              {data.lastRefreshAt ? ago(data.lastRefreshAt) : "none yet"}
             </>
           )}
           {refreshMsg && <> · {refreshMsg}</>}
         </span>
-        {data?.refreshError && <span className="error small">{data.refreshError}</span>}
+        {data?.refreshProgress && <ProgressLine p={data.refreshProgress} />}
+        {data?.refreshError && (
+          <span className="error small">
+            Last download failed: {data.refreshError}. It will retry in a few minutes, or click Refresh markets.
+          </span>
+        )}
       </div>
 
       <div className="panel controls">
@@ -95,8 +126,17 @@ export default function ReviewTab() {
           markets resolve identically. Read both rule texts.
         </p>
         {error && <p className="error">{(error as Error).message}</p>}
+        {data?.partial && (
+          <p className="small warn-note">
+            Based on the markets downloaded so far. The list will update when the download finishes.
+          </p>
+        )}
         {data && data.candidates.length === 0 && (
-          <p className="muted">No unreviewed candidates. Try “Refresh markets” or include far-apart close dates.</p>
+          <p className="muted">
+            {data.refreshing && data.counts.kalshi + data.counts.polymarket === 0
+              ? "Waiting for the first markets to download…"
+              : "No unreviewed candidates. Try “Refresh markets” or include far-apart close dates."}
+          </p>
         )}
         {data && data.candidates.length > 0 && (
           <table>
