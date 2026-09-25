@@ -69,21 +69,21 @@ describe("generateCandidates", () => {
   ];
   const opts = { maxCloseDaysApart: 3, minScore: 0.3, limit: 50 };
 
-  it("ranks true matches and rejects far-apart close dates", () => {
-    const c = generateCandidates(kalshi, poly, opts);
+  it("ranks true matches and rejects far-apart close dates", async () => {
+    const c = await generateCandidates(kalshi, poly, opts);
     const keys = c.map((x) => pairKey(x.kalshiTicker, x.polyMarketId));
     expect(keys).toContain("KXFED-26DEC-CUT|1");
     expect(keys).toContain("KXBTC-27JAN-100K|2");
     expect(keys).not.toContain("KXFED-26DEC-CUT|3"); // ~92 days apart
   });
 
-  it("can ignore dates when forced", () => {
-    const c = generateCandidates(kalshi, poly, { ...opts, ignoreDates: true });
+  it("can ignore dates when forced", async () => {
+    const c = await generateCandidates(kalshi, poly, { ...opts, ignoreDates: true });
     expect(c.map((x) => pairKey(x.kalshiTicker, x.polyMarketId))).toContain("KXFED-26DEC-CUT|3");
   });
 
-  it("excludes reviewed pairs", () => {
-    const c = generateCandidates(kalshi, poly, { ...opts, exclude: new Set(["KXFED-26DEC-CUT|1"]) });
+  it("excludes reviewed pairs", async () => {
+    const c = await generateCandidates(kalshi, poly, { ...opts, exclude: new Set(["KXFED-26DEC-CUT|1"]) });
     expect(c.map((x) => pairKey(x.kalshiTicker, x.polyMarketId))).not.toContain("KXFED-26DEC-CUT|1");
   });
 });

@@ -1,3 +1,4 @@
+import { yieldToEventLoop } from "./async";
 import { getConfig } from "./config";
 import {
   getKalshiMarkets,
@@ -56,17 +57,28 @@ export async function refreshMarkets(): Promise<{ kalshi: number; polymarket: nu
   state.refreshing = true;
   const started = new Date().toISOString();
   try {
-    const [k, p] = await Promise.allSettled([listKalshiMarkets(), listPolyMarkets()]);
+    const counts = { kalshi: 0, polymarket: 0 };
+    const [k, p] = await Promise.allSettled([
+      listKalshiMarkets({
+        onPage: async (page) => {
+          saveKalshiMarkets(page);
+          counts.kalshi += page.length;
+          await yieldToEventLoop();
+        },
+      }),
+      listPolyMarkets({
+        onPage: async (page) => {
+          savePolyMarkets(page);
+          counts.polymarket += page.length;
+          await yieldToEventLoop();
+        },
+      }),
+    ]);
     const errors: string[] = [];
-    if (k.status === "fulfilled") saveKalshiMarkets(k.value);
-    else errors.push(`Kalshi: ${(k.reason as Error).message}`);
-    if (p.status === "fulfilled") savePolyMarkets(p.value);
-    else errors.push(`Polymarket: ${(p.reason as Error).message}`);
-    if (k.status === "fulfilled" && p.status === "fulfilled") pruneMarkets(started);
-    const counts = {
-      kalshi: k.status === "fulfilled" ? k.value.length : 0,
-      polymarket: p.status === "fulfilled" ? p.value.length : 0,
-    };
+    if (k.status === "rejected") errors.push(`Kalshi: ${(k.reason as Error).message}`);
+    if (p.status === "rejected") errors.push(`Polymarket: ${(p.reason as Error).message}`);
+    // Only drop markets that vanished when both catalogs came through completely.
+    if (!errors.length) pruneMarkets(started);
     state.lastRefreshCounts = counts;
     state.lastRefreshError = errors.length ? errors.join("; ") : null;
     if (!errors.length) {

@@ -27,8 +27,13 @@ export function unwrapKeysetPage(body: unknown): { markets: PolyRawMarket[]; nex
   return { markets: Array.isArray(markets) ? markets : [], next: next || null };
 }
 
-/** All tradable two-outcome markets. Pages until there is no next_cursor. */
-export async function listPolyMarkets(opts: { maxPages?: number; pageSize?: number } = {}): Promise<PolyMarket[]> {
+/**
+ * All tradable two-outcome markets. Pages until there is no next_cursor.
+ * With `onPage`, each page is handed over as it arrives instead of being collected.
+ */
+export async function listPolyMarkets(
+  opts: { maxPages?: number; pageSize?: number; onPage?: (markets: PolyMarket[]) => void | Promise<void> } = {},
+): Promise<PolyMarket[]> {
   const c = getConfig();
   const out: PolyMarket[] = [];
   let cursor: string | null = null;
@@ -36,10 +41,13 @@ export async function listPolyMarkets(opts: { maxPages?: number; pageSize?: numb
     const qs = new URLSearchParams({ closed: "false", limit: String(opts.pageSize ?? 500) });
     if (cursor) qs.set("after_cursor", cursor);
     const { markets, next } = unwrapKeysetPage(await req<unknown>(`${c.polyGammaBaseUrl}/markets/keyset?${qs}`));
+    const page_: PolyMarket[] = [];
     for (const raw of markets) {
       const m = parsePolyMarket(raw);
-      if (m) out.push(m);
+      if (m) page_.push(m);
     }
+    if (opts.onPage) await opts.onPage(page_);
+    else out.push(...page_);
     if (!next || next === cursor || markets.length === 0) break;
     cursor = next;
   }

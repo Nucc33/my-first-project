@@ -1,6 +1,7 @@
 import { DatabaseSync } from "node:sqlite";
 import fs from "node:fs";
 import path from "node:path";
+import { yieldToEventLoop } from "./async";
 import { getConfig } from "./config";
 import type { KalshiMarket } from "./kalshi/parse";
 import type { Pair, PairInput, PairStatus } from "./pairs";
@@ -224,6 +225,28 @@ export function getPolyMarkets(ids?: string[], db: DB = getDb()): PolyMarket[] {
     ? ids.map((id) => db.prepare("SELECT data FROM poly_markets WHERE id = ?").get(id)).filter(Boolean)
     : db.prepare("SELECT data FROM poly_markets").all();
   return (rows as { data: string }[]).map((r) => JSON.parse(r.data));
+}
+
+/** Whole catalog, read in batches with pauses so a large cache doesn't freeze the server. */
+async function loadAllInBatches<T>(table: "kalshi_markets" | "poly_markets", db: DB, batch = 2000): Promise<T[]> {
+  const stmt = db.prepare(`SELECT rowid AS r, data FROM ${table} WHERE rowid > ? ORDER BY rowid LIMIT ?`);
+  const out: T[] = [];
+  let last = 0;
+  for (;;) {
+    const rows = stmt.all(last, batch) as Array<{ r: number; data: string }>;
+    for (const row of rows) out.push(JSON.parse(row.data));
+    if (rows.length < batch) return out;
+    last = rows[rows.length - 1].r;
+    await yieldToEventLoop();
+  }
+}
+
+export function loadAllKalshiMarkets(db: DB = getDb()): Promise<KalshiMarket[]> {
+  return loadAllInBatches<KalshiMarket>("kalshi_markets", db);
+}
+
+export function loadAllPolyMarkets(db: DB = getDb()): Promise<PolyMarket[]> {
+  return loadAllInBatches<PolyMarket>("poly_markets", db);
 }
 
 export function marketCounts(db: DB = getDb()): { kalshi: number; polymarket: number } {

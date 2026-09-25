@@ -1,3 +1,4 @@
+import { yieldToEventLoop } from "../async";
 import { kalshiDisplayTitle, KalshiMarket } from "../kalshi/parse";
 import type { PolyMarket } from "../polymarket/parse";
 import { normalizeTokens } from "./normalize";
@@ -60,13 +61,26 @@ export function tokenSetSimilarity(a: Set<string>, b: Set<string>, idf: (t: stri
   return 0.5 * jaccard + 0.5 * overlap;
 }
 
+/** Items processed between pauses; keeps each synchronous slice to a few milliseconds. */
+const SLICE = 500;
+
+async function mapInSlices<T, U>(items: T[], fn: (x: T) => U): Promise<U[]> {
+  const out: U[] = [];
+  for (let i = 0; i < items.length; i++) {
+    out.push(fn(items[i]));
+    if (i % SLICE === SLICE - 1) await yieldToEventLoop();
+  }
+  return out;
+}
+
 /**
  * Candidate generation. An inverted index over Kalshi tokens keeps this near-linear: each
  * Polymarket market is only compared with Kalshi markets sharing informative tokens.
+ * Async only so it can pause between slices; full catalogs take seconds of CPU.
  */
-export function generateCandidates(kalshi: KalshiMarket[], poly: PolyMarket[], o: CandidateOptions): Candidate[] {
-  const kTokens = kalshi.map((m) => new Set(normalizeTokens(kalshiDisplayTitle(m))));
-  const pTokens = poly.map((m) => new Set(normalizeTokens(m.question)));
+export async function generateCandidates(kalshi: KalshiMarket[], poly: PolyMarket[], o: CandidateOptions): Promise<Candidate[]> {
+  const kTokens = await mapInSlices(kalshi, (m) => new Set(normalizeTokens(kalshiDisplayTitle(m))));
+  const pTokens = await mapInSlices(poly, (m) => new Set(normalizeTokens(m.question)));
 
   const df = new Map<string, number>();
   for (const set of [...kTokens, ...pTokens]) for (const t of set) df.set(t, (df.get(t) ?? 0) + 1);
@@ -86,7 +100,9 @@ export function generateCandidates(kalshi: KalshiMarket[], poly: PolyMarket[], o
 
   const out: Candidate[] = [];
   const perPoly = o.perPolyMarket ?? 5;
-  poly.forEach((pm, pi) => {
+  for (let pi = 0; pi < poly.length; pi++) {
+    if (pi % SLICE === SLICE - 1) await yieldToEventLoop();
+    const pm = poly[pi];
     const acc = new Map<number, number>();
     for (const t of pTokens[pi]) {
       const posting = index.get(t);
@@ -118,6 +134,6 @@ export function generateCandidates(kalshi: KalshiMarket[], poly: PolyMarket[], o
     }
     scored.sort((x, y) => y.score - x.score);
     out.push(...scored.slice(0, perPoly));
-  });
+  }
   return out.sort((x, y) => y.score - x.score).slice(0, o.limit);
 }
