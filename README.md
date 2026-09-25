@@ -12,7 +12,7 @@ It places no orders and holds no API keys. Every endpoint it calls is public.
 
 ## Setup
 
-Requires Node.js ≥ 20.9.
+Requires Node.js ≥ 22.13 (uses the built-in `node:sqlite`, so nothing needs compiling).
 
 ```bash
 npm install

@@ -1,4 +1,4 @@
-import Database from "better-sqlite3";
+import { DatabaseSync } from "node:sqlite";
 import fs from "node:fs";
 import path from "node:path";
 import { getConfig } from "./config";
@@ -6,7 +6,7 @@ import type { KalshiMarket } from "./kalshi/parse";
 import type { Pair, PairInput, PairStatus } from "./pairs";
 import type { PolyMarket } from "./polymarket/parse";
 
-type DB = Database.Database;
+type DB = DatabaseSync;
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS pairs (
@@ -70,11 +70,24 @@ const g = globalThis as unknown as { __arbDb?: DB };
 
 export function openDb(file: string): DB {
   if (file !== ":memory:") fs.mkdirSync(path.dirname(path.resolve(file)), { recursive: true });
-  const db = new Database(file);
-  db.pragma("journal_mode = WAL");
-  db.pragma("foreign_keys = ON");
+  const db = new DatabaseSync(file);
+  if (file !== ":memory:") db.exec("PRAGMA journal_mode = WAL");
+  db.exec("PRAGMA foreign_keys = ON");
   db.exec(SCHEMA);
   return db;
+}
+
+/** Run `fn` in a transaction, rolling back if it throws. */
+function transaction<T>(db: DB, fn: () => T): T {
+  db.exec("BEGIN");
+  try {
+    const out = fn();
+    db.exec("COMMIT");
+    return out;
+  } catch (err) {
+    db.exec("ROLLBACK");
+    throw err;
+  }
 }
 
 export function getDb(): DB {
@@ -124,7 +137,7 @@ export function listPairs(status?: PairStatus, db: DB = getDb()): Pair[] {
   const rows = status
     ? db.prepare("SELECT * FROM pairs WHERE status = ? ORDER BY id").all(status)
     : db.prepare("SELECT * FROM pairs ORDER BY id").all();
-  return (rows as PairRow[]).map(rowToPair);
+  return (rows as unknown as PairRow[]).map(rowToPair);
 }
 
 export function getPair(id: number, db: DB = getDb()): Pair | null {
@@ -163,7 +176,7 @@ export function upsertPair(p: PairInput, db: DB = getDb()): Pair {
   });
   const r = db
     .prepare("SELECT * FROM pairs WHERE kalshi_ticker = ? AND poly_market_id = ?")
-    .get(p.kalshiTicker, p.polyMarketId) as PairRow;
+    .get(p.kalshiTicker, p.polyMarketId) as unknown as PairRow;
   return rowToPair(r);
 }
 
@@ -178,9 +191,9 @@ export function saveKalshiMarkets(markets: KalshiMarket[], db: DB = getDb()): vo
   const stmt = db.prepare(
     "INSERT INTO kalshi_markets (ticker, data, updated_at) VALUES (?, ?, ?) ON CONFLICT(ticker) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at",
   );
-  db.transaction(() => {
+  transaction(db, () => {
     for (const m of markets) stmt.run(m.ticker, JSON.stringify(m), now);
-  })();
+  });
 }
 
 export function savePolyMarkets(markets: PolyMarket[], db: DB = getDb()): void {
@@ -188,9 +201,9 @@ export function savePolyMarkets(markets: PolyMarket[], db: DB = getDb()): void {
   const stmt = db.prepare(
     "INSERT INTO poly_markets (id, data, updated_at) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at",
   );
-  db.transaction(() => {
+  transaction(db, () => {
     for (const m of markets) stmt.run(m.id, JSON.stringify(m), now);
-  })();
+  });
 }
 
 /** Drop cached markets not seen since `before` (closed/delisted), except ones referenced by pairs. */
@@ -248,7 +261,7 @@ export function recordScan(
   keep = 2000,
   db: DB = getDb(),
 ): number {
-  return db.transaction(() => {
+  return transaction(db, () => {
     const id = Number(
       db
         .prepare(
@@ -262,7 +275,7 @@ export function recordScan(
     for (const o of opps) ins.run(id, o.pairId, o.direction, o.contracts, o.totalCost, o.profit, o.roi, JSON.stringify(o));
     db.prepare("DELETE FROM scans WHERE id <= ?").run(id - keep);
     return id;
-  })();
+  });
 }
 
 export function recentScans(limit = 20, db: DB = getDb()): ScanRecord[] {
