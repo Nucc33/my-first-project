@@ -48,6 +48,12 @@ describe("normalize", () => {
     expect(normalizeTitle("BTC above $100k on Jan 1, 2027?")).toBe("bitcoin above 100000 january 1 2027");
     expect(normalizeTokens("CPI > 3.5% in Q4")).toEqual(["inflation", "3.5", "percent", "fourth", "quarter"]);
   });
+
+  it("treats Object.prototype member names as plain words", () => {
+    expect(normalizeTokens("F1 Constructor champion toString valueOf __proto__ hasOwnProperty")).toEqual([
+      "f1", "constructor", "champion", "tostring", "valueof", "proto", "hasownproperty",
+    ]);
+  });
 });
 
 describe("generateCandidates", () => {

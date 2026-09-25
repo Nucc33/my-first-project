@@ -93,7 +93,8 @@ export function normalizeTokens(text: string): string[] {
   const out: string[] = [];
   for (const raw of cleaned.split(/\s+/)) {
     if (!raw) continue;
-    const expanded = ABBREVIATIONS[raw] ?? expandNumber(raw);
+    // hasOwn: a plain lookup would return inherited members for words like "constructor".
+    const expanded = Object.hasOwn(ABBREVIATIONS, raw) ? ABBREVIATIONS[raw] : expandNumber(raw);
     for (const t of expanded.split(" ")) {
       if (t && !STOPWORDS.has(t)) out.push(t);
     }
