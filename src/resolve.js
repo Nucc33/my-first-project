@@ -1,8 +1,10 @@
 // Looks up Fomo usernames and fills in their Solana and EVM wallet addresses.
 //
 // Fomo itself has no public API, so this uses third-party lookup services:
-//   1. FomoLens      (https://fomolens.app)   -> set FOMOLENS_API_KEY in .env
-//   2. getfomoapi.fun (Open-Fomo-API)         -> set FOMOAPI_KEY in .env (optional backup)
+//   1. FomoScan      (https://www.fomoscan.sh) -> set FOMOSCAN_API_KEY in .env (free credits)
+//   2. FomoLens      (https://fomolens.app)    -> set FOMOLENS_API_KEY in .env (paid)
+//   3. getfomoapi.fun (Open-Fomo-API)          -> set FOMOAPI_KEY in .env
+// It uses whichever keys you've filled in, in that order.
 // Only the Fomo username is sent. Nothing else about you or your wallets.
 //
 // Run it with:  npm run resolve          (only the ones not found yet)
@@ -49,6 +51,13 @@ function extractWallets(json) {
 }
 
 const PROVIDERS = [
+  {
+    name: 'FomoScan',
+    env: 'FOMOSCAN_API_KEY',
+    url: (h) => `${process.env.FOMOSCAN_API_URL || 'https://api.fomoscan.sh/v2'}/user/handle/${encodeURIComponent(h)}`,
+    // Their docs weren't reachable to confirm which header they use, so send the key both common ways.
+    headers: (k) => ({ Authorization: `Bearer ${k}`, 'X-API-Key': k, Accept: 'application/json' }),
+  },
   {
     name: 'FomoLens',
     env: 'FOMOLENS_API_KEY',
@@ -104,7 +113,7 @@ async function lookup(handle) {
  */
 async function resolveAll(store, { all = false, onProgress } = {}) {
   if (!configuredProviders().length) {
-    throw new Error('No lookup API key found. Add FOMOLENS_API_KEY to your .env file (see README, step 3).');
+    throw new Error('No lookup API key found. Add FOMOSCAN_API_KEY (free) to your .env file (see README, step 3).');
   }
   const todo = store.wallets.filter((w) => w.fomo && (all || (!w.sol && !w.evm)));
   const summary = { resolved: [], notFound: [], failed: [] };

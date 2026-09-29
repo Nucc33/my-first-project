@@ -197,6 +197,16 @@ test('Resolver: reads the FomoLens mappings shape', () => {
   assert.deepEqual(extractWallets({ count: 0, mappings: [] }), { sol: null, evm: null, extra: [] });
 });
 
+test('Resolver: reads the FomoScan shape and ignores holdings', () => {
+  const r = extractWallets({
+    id: 'abc', handle: 'frankdegods', name: 'Frank', bio: 'gm',
+    solanaAddress: WALLET, evmAddress: '0x4BC1782FAFB967834E0E75947BA15113E48FC70E',
+    holdings: [{ mint: MEME }], followers: [{ solanaAddress: RELAYER }],
+  });
+  assert.equal(r.sol, WALLET);
+  assert.equal(r.evm, '0x4bc1782fafb967834e0e75947ba15113e48fc70e');
+});
+
 test('Resolver: nothing found', () => {
   const r = extractWallets({ error: 'user not found' });
   assert.equal(r.sol, null);

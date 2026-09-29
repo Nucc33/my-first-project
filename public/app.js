@@ -222,7 +222,7 @@
     box.innerHTML = `
       <div>
         <b>${missing}</b> of ${state.wallets.length} traders have no wallet address yet.
-        ${ready ? '' : '<br><span class="msg err">To look them up automatically, add FOMOLENS_API_KEY to your .env file and restart (see README step 3).</span>'}
+        ${ready ? '' : '<br><span class="msg err">To look them up automatically, add FOMOSCAN_API_KEY to your .env file and restart (see README step 3).</span>'}
       </div>
       <button class="primary" id="resolve-btn" ${!ready || r.running || !missing ? 'disabled' : ''}>Look up wallets from Fomo</button>
       <button id="resolve-all-btn" ${!ready || r.running ? 'disabled' : ''} title="Look everyone up again, even ones that already have an address">Re-check all</button>
