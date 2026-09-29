@@ -45,16 +45,14 @@ In the tracker folder, make a copy of the file **`.env.example`** and name the c
 2. Find the **API** / **API keys** section and create a key.
 3. Paste it into `.env`: `FOMOSCAN_API_KEY=....`
 
-**d) FomoLens (optional, paid alternative)**
-
-**FomoLens (turns Fomo usernames into wallet addresses), paid**
+**d) FomoLens (optional, paid alternative to FomoScan)**
 FomoLens's API is **not free**. Signing up gives no credits; you need a paid plan (paid in USDC on Solana) or a trial they approve by hand. A found wallet costs 10 credits and a miss costs 1, so all 75 traders cost at most ~750 credits, once.
 1. Go to **https://fomolens.app**, sign up, and get a plan or trial.
 2. Open **Dashboard → API keys** and create a key. A real key starts with `fl_live_` followed by 43 letters/numbers.
 3. Paste it into `.env`: `FOMOLENS_API_KEY=fl_live_....`
 4. *Optional backup:* a key from **https://getfomoapi.fun** goes in `FOMOAPI_KEY=....`.
 
-No paid key? Skip this. You can paste addresses in by hand on the dashboard's Wallets page instead.
+Only needed if FomoScan misses some traders. You can also paste addresses in by hand on the dashboard's Wallets page instead.
 
 Save the `.env` file.
 
