@@ -1,0 +1,7 @@
+# Your API keys: never commit this file
+.env
+# Your trade history and settings
+data/
+node_modules/
+.DS_Store
+*.tmp

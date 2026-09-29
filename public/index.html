@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Wallet Tracker</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='12' fill='%2322c55e'/></svg>">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand">Wallet Tracker</div>
+    <nav class="pages">
+      <button class="page-btn active" data-page="feed">Feed</button>
+      <button class="page-btn" data-page="wallets">Wallets <span id="wallet-count" class="count"></span></button>
+    </nav>
+    <div id="chains" class="chains"></div>
+    <button id="sound-btn" class="sound-btn" title="Turn all sound alerts on or off"></button>
+  </header>
+
+  <div id="unlock" class="unlock" hidden>Click anywhere on this page to allow sound alerts (your browser needs one click first).</div>
+
+  <main>
+    <!-- FEED -->
+    <section id="page-feed" class="page">
+      <div class="controls">
+        <div class="seg" id="side-seg">
+          <button data-side="buy" class="active">Buys</button>
+          <button data-side="sell">Sells</button>
+          <button data-side="all">All</button>
+        </div>
+        <div class="seg" id="chain-seg">
+          <button data-chain="all" class="active">All chains</button>
+          <button data-chain="solana">SOL</button>
+          <button data-chain="base">Base</button>
+          <button data-chain="bnb">BNB</button>
+        </div>
+        <input id="search" type="search" placeholder="Search trader or token" autocomplete="off">
+        <div class="spacer"></div>
+        <label class="field" title="Buys smaller than this never make a sound">
+          Sound only for buys over $
+          <input id="min-buy" type="number" min="0" step="10" inputmode="numeric">
+        </label>
+        <label class="check"><input type="checkbox" id="hide-small"> Hide smaller buys</label>
+      </div>
+
+      <div class="feed-head">
+        <div>Time</div><div>Trader</div><div>Token</div><div class="num">Amount</div><div>Chain</div><div class="links-h">Links</div>
+      </div>
+      <div id="feed" class="feed"></div>
+      <div id="empty" class="empty" hidden></div>
+    </section>
+
+    <!-- WALLETS -->
+    <section id="page-wallets" class="page" hidden>
+      <div id="resolve-box" class="panel resolve"></div>
+
+      <form id="wallet-form" class="panel form">
+        <h2 id="form-title">Add a trader</h2>
+        <div class="form-grid">
+          <label>Nickname<input name="nickname" required maxlength="40" placeholder="e.g. unipcs"></label>
+          <label>Solana wallet<input name="sol" placeholder="Long address, letters and numbers" spellcheck="false"></label>
+          <label>Base / BNB wallet<input name="evm" placeholder="Starts with 0x" spellcheck="false"></label>
+          <label class="check inline"><input type="checkbox" name="sound" checked> Sound on buys</label>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="primary" id="form-submit">Add trader</button>
+          <button type="button" id="form-cancel" hidden>Cancel</button>
+          <span id="form-msg" class="msg"></span>
+        </div>
+        <p class="hint">You only need one address. A trader's Base and BNB wallet is the same 0x address.</p>
+      </form>
+
+      <div class="panel">
+        <div class="wallets-toolbar">
+          <h2>Traders</h2>
+          <input id="wallet-search" type="search" placeholder="Search" autocomplete="off">
+          <label class="check"><input type="checkbox" id="only-missing"> Only ones without an address</label>
+        </div>
+        <div class="wtable" id="wallet-table"></div>
+      </div>
+
+      <div class="panel settings">
+        <h2>Alerts</h2>
+        <label class="check"><input type="checkbox" id="sound-sells"> Also play a (lower) sound for sells from sound-on traders</label>
+        <label class="check"><input type="checkbox" id="desktop-notif"> Show desktop pop-up notifications too</label>
+        <button type="button" id="test-sound">Play test sound</button>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
