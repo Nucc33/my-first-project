@@ -10,6 +10,7 @@
 // Run it with:  npm run resolve          (only the ones not found yet)
 //               npm run resolve -- --all (look everyone up again)
 const { fetchJson, isSolanaAddress, isEvmAddress, sleep, log } = require('./util');
+const { envHint } = require('./env');
 
 // Collect every wallet-looking string in a response, remembering the field it came from.
 function collect(node, path, out, hint) {
@@ -113,7 +114,7 @@ async function lookup(handle) {
  */
 async function resolveAll(store, { all = false, onProgress } = {}) {
   if (!configuredProviders().length) {
-    throw new Error('No lookup API key found. Add FOMOSCAN_API_KEY (free) to your .env file (see README, step 3).');
+    throw new Error(`No lookup API key found. Add FOMOSCAN_API_KEY (free) to your .env file (see README, step 3).\n${envHint()}`);
   }
   const todo = store.wallets.filter((w) => w.fomo && (all || (!w.sol && !w.evm)));
   const summary = { resolved: [], notFound: [], failed: [] };

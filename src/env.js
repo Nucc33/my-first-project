@@ -16,4 +16,14 @@ function loadEnv() {
   return true;
 }
 
-module.exports = { loadEnv, ENV_FILE };
+// Explain where the .env file should be, and spot common naming mistakes.
+function envHint() {
+  const dir = path.dirname(ENV_FILE);
+  if (fs.existsSync(ENV_FILE)) return `(Using ${ENV_FILE})`;
+  const lookalikes = fs.readdirSync(dir).filter((f) => /^\.?env/i.test(f) && f !== '.env.example');
+  let msg = `There is no file named exactly ".env" in ${dir}`;
+  if (lookalikes.length) msg += `\nFound ${lookalikes.map((f) => `"${f}"`).join(', ')} instead: rename it to exactly ".env".`;
+  return msg;
+}
+
+module.exports = { loadEnv, envHint, ENV_FILE };
