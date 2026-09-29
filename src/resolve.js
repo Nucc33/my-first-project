@@ -24,7 +24,7 @@ function collect(node, path, out, hint) {
   }
   if (typeof node === 'object') {
     // e.g. { chain: "solana", address: "..." }
-    const label = ['chain', 'type', 'network', 'blockchain', 'kind'].map((k) => node[k]).filter((v) => typeof v === 'string').join(' ');
+    const label = ['chain', 'type', 'network', 'blockchain', 'kind', 'walletFamily', 'family'].map((k) => node[k]).filter((v) => typeof v === 'string').join(' ');
     for (const [k, v] of Object.entries(node)) collect(v, [...path, k], out, label || hint);
   }
 }
@@ -72,16 +72,26 @@ async function lookup(handle) {
   let lastErr = null;
   let notFound = false;
   for (const p of providers) {
-    try {
-      const json = await fetchJson(p.url(handle), { headers: p.headers(process.env[p.env].trim()) });
-      const w = extractWallets(json);
-      if (w.sol || w.evm) return { ...w, source: p.name };
-      notFound = true;
-    } catch (e) {
-      if (e.status === 404) notFound = true;
-      else if (e.status === 401 || e.status === 403) lastErr = new Error(`${p.name} rejected the API key (check ${p.env} in .env)`);
-      else lastErr = new Error(`${p.name}: ${e.message}`);
-      if (e.status === 429) await sleep(5000);
+    // Rate-limited (429) or briefly down (503): wait and try the same request again.
+    for (let attempt = 0; attempt < 4; attempt++) {
+      try {
+        const json = await fetchJson(p.url(handle), { headers: p.headers(process.env[p.env].trim()) });
+        const w = extractWallets(json);
+        if (w.sol || w.evm) return { ...w, source: p.name };
+        notFound = true;
+      } catch (e) {
+        const code = e.body && e.body.error;
+        if (e.status === 429 || e.status === 503) {
+          await sleep(e.status === 429 ? 15000 : 5000);
+          continue;
+        }
+        if (e.status === 404) notFound = true;
+        else if (e.status === 401) lastErr = new Error(`${p.name} rejected the API key (check ${p.env} in .env; it should start with fl_live_)`);
+        else if (e.status === 402) lastErr = new Error(`${p.name}: out of credits (${code || 'insufficient_credits'}). Top up on their dashboard.`);
+        else if (e.status === 403) lastErr = new Error(`${p.name}: account can't use the API yet (${code || 'forbidden'}). It needs a paid plan or an approved trial.`);
+        else lastErr = new Error(`${p.name}: ${code || e.message}`);
+      }
+      break;
     }
   }
   if (notFound) return { sol: null, evm: null, notFound: true };
@@ -118,10 +128,11 @@ async function resolveAll(store, { all = false, onProgress } = {}) {
     } catch (e) {
       store.updateWallet(w.id, { status: 'lookup failed' });
       summary.failed.push(`${w.nickname} (${e.message})`);
-      if (/rejected the API key|no lookup service/.test(e.message)) throw e;
+      if (/rejected the API key|no lookup service|out of credits|can't use the API/.test(e.message)) throw e;
     }
     if (onProgress) onProgress(i, todo.length, w);
-    await sleep(1100); // be polite to free tiers
+    // FomoLens trial accounts allow 10 requests per minute, so go slowly by default.
+    await sleep(Number(process.env.RESOLVE_DELAY_MS) || 6500);
   }
   return summary;
 }

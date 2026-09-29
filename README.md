@@ -40,11 +40,14 @@ In the tracker folder, make a copy of the file **`.env.example`** and name the c
 3. Open the app and copy the **API Key**.
 4. Paste it into `.env`: `ALCHEMY_API_KEY=....`
 
-**c) FomoLens (turns Fomo usernames into wallet addresses)**
-1. Go to **https://fomolens.app** and sign up or log in.
-2. Find the **API** or **API keys** section and create a key.
-3. Paste it into `.env`: `FOMOLENS_API_KEY=....`
-4. *Optional backup:* If you also get a key from **https://getfomoapi.fun**, add it as `FOMOAPI_KEY=....`. The tracker tries FomoLens first and then this one.
+**c) FomoLens (turns Fomo usernames into wallet addresses), paid**
+FomoLens's API is **not free**. Signing up gives no credits; you need a paid plan (paid in USDC on Solana) or a trial they approve by hand. A found wallet costs 10 credits and a miss costs 1, so all 75 traders cost at most ~750 credits, once.
+1. Go to **https://fomolens.app**, sign up, and get a plan or trial.
+2. Open **Dashboard → API keys** and create a key. A real key starts with `fl_live_` followed by 43 letters/numbers.
+3. Paste it into `.env`: `FOMOLENS_API_KEY=fl_live_....`
+4. *Optional backup:* a key from **https://getfomoapi.fun** goes in `FOMOAPI_KEY=....`.
+
+No paid key? Skip this. You can paste addresses in by hand on the dashboard's Wallets page instead.
 
 Save the `.env` file.
 
@@ -60,7 +63,7 @@ Then run:
 npm run resolve
 ```
 
-It goes through all 75 usernames, about one per second, and prints what it found. Anyone it can't find is listed at the end and marked **NOT FOUND** on the dashboard's Wallets page. You can also run the lookup later from the dashboard with **Look up wallets from Fomo**.
+It goes through all 75 usernames slowly (about 8 minutes, to stay inside FomoLens's trial limit of 10 lookups a minute) and prints what it found. Anyone it can't find is listed at the end and marked **NOT FOUND** on the dashboard's Wallets page. You can also run the lookup later from the dashboard with **Look up wallets from Fomo**.
 
 ---
 

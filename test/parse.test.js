@@ -184,6 +184,19 @@ test('Resolver: reads a list-of-wallets shape and skips token addresses', () => 
   assert.equal(r.evm, '0x4bc1782fafb967834e0e75947ba15113e48fc70e');
 });
 
+test('Resolver: reads the FomoLens mappings shape', () => {
+  const r = extractWallets({
+    count: 2,
+    mappings: [
+      { walletFamily: 'evm', walletAddress: '0x1111111111111111111111111111111111111111', userId: '3f2b8c1e-9a4d-4b6e-8f10-2c5d7e9a1b34', userHandle: 'x' },
+      { walletFamily: 'solana', walletAddress: WALLET, userId: '3f2b8c1e-9a4d-4b6e-8f10-2c5d7e9a1b34', userHandle: 'x' },
+    ],
+  });
+  assert.equal(r.sol, WALLET);
+  assert.equal(r.evm, '0x1111111111111111111111111111111111111111');
+  assert.deepEqual(extractWallets({ count: 0, mappings: [] }), { sol: null, evm: null, extra: [] });
+});
+
 test('Resolver: nothing found', () => {
   const r = extractWallets({ error: 'user not found' });
   assert.equal(r.sol, null);
